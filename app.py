@@ -1,281 +1,174 @@
 import io
 import sys
 import json
-import time
 from datetime import datetime
-
 import numpy as np
 import pandas as pd
 import streamlit as st
-import plotly.express as px
 import plotly.graph_objects as go
 
 # ----------------------------
 # App Config
 # ----------------------------
 st.set_page_config(
-    page_title="AI Super Egg – Price Forecast",
+    page_title="CPF War Room – AI Super Egg Forecast",
     page_icon="🥚",
     layout="wide"
 )
 
-PRIMARY_COLOR = "#0ea5e9"
+# CPF Theme Colors
+CPF_GREEN = "#76d9c1"
+CPF_YELLOW = "#f8cf40"
+CPF_GRAY = "#cfd3da"
+DARK_BG = "#101827"
 
 # ----------------------------
-# Helpers
+# Helper Functions
 # ----------------------------
 @st.cache_data(show_spinner=False)
 def read_csv(file, date_col=None):
     df = pd.read_csv(file)
-    # date normalization
+    # Detect date column
     guess_cols = [date_col] if date_col else [c for c in df.columns if c.lower() in ["ds", "date"]]
     for c in guess_cols:
         if c and c in df.columns:
-            # try several common formats before letting pandas infer
-            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
-                try:
-                    df[c] = pd.to_datetime(df[c], format=fmt)
-                    break
-                except Exception:
-                    pass
-            if not np.issubdtype(df[c].dtype, np.datetime64):
-                df[c] = pd.to_datetime(df[c], errors="coerce")
+            df[c] = pd.to_datetime(df[c], errors="coerce")
             df.rename(columns={c: "ds"}, inplace=True)
             break
-    # standardize target name if present
-    for yname in ["y", "Price", "PriceMarket", "yMarket", "price", "pricemarket"]:
+    # Normalize y and yhat
+    for yname in ["y", "PriceMarket", "Price", "Actual"]:
         if yname in df.columns:
             df.rename(columns={yname: "y"}, inplace=True)
-            break
-    # Prophet convention: yhat bands
-    ren = {}
-    for k in df.columns:
-        lk = k.lower()
-        if lk in ["yhat_lower", "yhat upper", "yhat_upper", "lower", "lo"]:
-            ren[k] = "yhat_lower"
-        if lk in ["yhat_upper", "upper", "hi"]:
-            ren[k] = "yhat_upper"
-    if ren:
-        df.rename(columns=ren, inplace=True)
+    for yhat in ["yhat", "Predicted", "PriceMarket_predicted"]:
+        if yhat in df.columns:
+            df.rename(columns={yhat: "yhat"}, inplace=True)
     return df
 
-def require_cols(df, cols, name):
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        st.warning(f"ไฟล์ **{name}** ขาดคอลัมน์ที่จำเป็น: {missing}")
-        return False
-    return True
-
-def infer_bounds(dates: pd.Series):
-    dmin = pd.to_datetime(dates.min())
-    dmax = pd.to_datetime(dates.max())
-    return dmin, dmax
-
-def compute_metrics(actual_df: pd.DataFrame, pred_df: pd.DataFrame):
-    # merge on ds for alignment
+def compute_metrics(actual_df, pred_df):
     df = pd.merge(
         actual_df[["ds", "y"]].dropna(),
-        pred_df[["ds", "yhat"]].rename(columns={"yhat": "pred"}),
-        on="ds", how="inner"
-    ).sort_values("ds")
+        pred_df[["ds", "yhat"]],
+        on="ds",
+        how="inner"
+    )
     if df.empty:
-        return None, None
-    mae = np.mean(np.abs(df["y"] - df["pred"]))
-    rmse = np.sqrt(np.mean((df["y"] - df["pred"])**2))
-    # avoid division by zero in MAPE
-    denom = np.where(df["y"] == 0, np.nan, np.abs(df["y"]))
-    mape = np.nanmean(np.abs((df["y"] - df["pred"]) / denom)) * 100
-    return df, {"MAE": mae, "RMSE": rmse, "MAPE(%)": mape}
-
-def style_kpi(val, fmt="{:,.2f}"):
-    try:
-        return fmt.format(val) if pd.notnull(val) else "—"
-    except Exception:
-        return "—"
+        return None
+    mae = np.mean(np.abs(df["y"] - df["yhat"]))
+    rmse = np.sqrt(np.mean((df["y"] - df["yhat"]) ** 2))
+    mape = np.mean(np.abs((df["y"] - df["yhat"]) / df["y"])) * 100
+    return round(mae, 2), round(rmse, 2), round(mape, 2)
 
 # ----------------------------
-# UI – Sidebar (Inputs)
+# Sidebar
 # ----------------------------
 with st.sidebar:
-    st.header("🔧 Data Inputs")
-    st.caption("อัปโหลด output จาก Google Colab (เช่น **forecast.csv** และ **history/test.csv**)")
-    fc_file = st.file_uploader("Forecast file (ต้องมีคอลัมน์: ds, yhat[, yhat_lower, yhat_upper])", type=["csv"], key="fc")
-    ac_file = st.file_uploader("Actual/History file (มี ds, y)", type=["csv"], key="ac")
-
-    st.divider()
-
-    st.header("🎛️ Display Options")
-    show_ci = st.toggle("แสดงช่วงความเชื่อมั่น (yhat_lower–yhat_upper)", value=True)
-    show_points = st.toggle("แสดงจุดข้อมูล (markers)", value=False)
-    smooth = st.slider("Smoothing (moving average windows)", 1, 12, 1, help="เฉลี่ยเคลื่อนที่ (สัปดาห์) สำหรับเส้นคาดการณ์และ actual")
-    st.caption("💡 ถ้าไม่มี yhat_lower/yhat_upper จะไม่วาด CI ให้")
+    st.image("https://upload.wikimedia.org/wikipedia/en/3/3a/Charoen_Pokphand_Foods_logo.png", width=160)
+    st.markdown("### ⚙️ Upload AI Model Outputs")
+    fc_file = st.file_uploader("📈 Forecast file (from Colab)", type=["csv"])
+    ac_file = st.file_uploader("📊 Actual file (optional)", type=["csv"])
+    show_ci = st.toggle("Show Confidence Interval", True)
+    smooth = st.slider("Smoothing Window", 1, 12, 1)
+    st.caption("💡 Tip: Upload forecast.csv + actual.csv to compare AI prediction accuracy.")
 
 # ----------------------------
-# Main
+# Header
 # ----------------------------
-st.title("🥚 AI Super Egg – Price Forecast")
-st.write("แอปสำหรับสำรวจผลพยากรณ์ราคาไข่ไก่จากโมเดล (Prophet) ที่เทรนใน Google Colab และปรับช่วงข้อมูลแบบ **Dynamic Range** ได้ทันที")
+col1, col2 = st.columns([0.8, 0.2])
+with col1:
+    st.markdown(
+        f"""
+        <h2 style='color:{CPF_GREEN}; font-weight:700;'>
+            🥚 CPF War Room | AI Super Egg Price Forecast
+        </h2>
+        <p style='color:{CPF_GRAY};'>
+            Data-driven insight dashboard powered by Google Colab model outputs.
+        </p>
+        """, unsafe_allow_html=True
+    )
+with col2:
+    st.image("https://upload.wikimedia.org/wikipedia/en/3/3a/Charoen_Pokphand_Foods_logo.png", width=120)
 
-tab_plot, tab_table, tab_about = st.tabs(["📈 Visualization", "📊 Tables", "ℹ️ About"])
-
-with tab_about:
-    st.subheader("วิธีใช้งานโดยย่อ")
-    st.markdown("""
-1) อัปโหลด **forecast.csv** จาก Colab (คอลัมน์ต้องมีอย่างน้อย `ds, yhat` และถ้ามี `yhat_lower, yhat_upper` จะวาดช่วงความเชื่อมั่นให้)  
-2) (แนะนำ) อัปโหลด **actual/history.csv** สำหรับ `y` เพื่อคำนวณ KPI (MAE / RMSE / MAPE) และเปรียบเทียบจริง–พยากรณ์  
-3) เลือกช่วงวันที่ด้วยสไลเดอร์ เพื่อโฟกัสเฉพาะช่วงที่ต้องการ  
-4) ปรับตัวเลือกการแสดงผล (CI / markers / smoothing)
-    """)
-    st.caption("หมายเหตุ: สคีมาข้อมูลยืดหยุ่น – แอปจะพยายามแม็พ `Date`→`ds` และ `Price/PriceMarket`→`y` ให้อัตโนมัติ")
+st.markdown("---")
 
 # ----------------------------
-# Load Data
+# Data Load
 # ----------------------------
-forecast_df = None
-actual_df = None
 if fc_file:
     forecast_df = read_csv(fc_file)
-    # require ds & yhat at minimum
-    if not require_cols(forecast_df, ["ds", "yhat"], "Forecast"):
-        forecast_df = None
-
-if ac_file:
-    actual_df = read_csv(ac_file)
-    # require ds & y at minimum
-    if not require_cols(actual_df, ["ds", "y"], "Actual/History"):
-        actual_df = None
-
-if (forecast_df is None) and (actual_df is None):
-    st.info("อัปโหลดไฟล์ด้านซ้ายเพื่อเริ่มต้น")
+    st.success(f"✅ Forecast data loaded: {len(forecast_df)} rows")
+else:
+    st.warning("กรุณาอัปโหลดไฟล์ Forecast ก่อนเริ่ม")
     st.stop()
 
+actual_df = read_csv(ac_file) if ac_file else None
+
 # ----------------------------
-# Date Range (Dynamic)
+# Dynamic Date Range
 # ----------------------------
-all_dates = []
-if forecast_df is not None:
-    all_dates.append(forecast_df["ds"])
+dmin, dmax = forecast_df["ds"].min(), forecast_df["ds"].max()
+start, end = st.slider(
+    "📆 Select Date Range",
+    min_value=dmin.to_pydatetime(),
+    max_value=dmax.to_pydatetime(),
+    value=(dmin.to_pydatetime(), dmax.to_pydatetime()),
+    format="YYYY-MM-DD"
+)
+
+# Filter by selected range
+mask = (forecast_df["ds"] >= start) & (forecast_df["ds"] <= end)
+forecast_df = forecast_df.loc[mask]
 if actual_df is not None:
-    all_dates.append(actual_df["ds"])
-date_min, date_max = infer_bounds(pd.concat(all_dates)) if all_dates else (None, None)
-
-with st.container():
-    st.subheader("ช่วงวันที่ (Dynamic Range)")
-    if date_min and date_max:
-        start, end = st.slider(
-            "เลือกช่วงเวลา",
-            min_value=pd.to_datetime(date_min).to_pydatetime(),
-            max_value=pd.to_datetime(date_max).to_pydatetime(),
-            value=(pd.to_datetime(max(date_min, date_max - pd.Timedelta(days=180))).to_pydatetime(),
-                   pd.to_datetime(date_max).to_pydatetime()),
-            format="YYYY-MM-DD",
-            key="date_range",
-        )
-    else:
-        st.warning("ไม่พบช่วงวันที่ที่ใช้ได้")
-        st.stop()
-
-# filter by range
-def slice_by_range(df):
-    if df is None:
-        return None
-    return df[(df["ds"] >= pd.to_datetime(start)) & (df["ds"] <= pd.to_datetime(end))].copy()
-
-fc_view = slice_by_range(forecast_df)
-ac_view = slice_by_range(actual_df)
-
-# moving average smoothing (optional)
-def apply_smooth(df, col):
-    if df is None or col not in df.columns or smooth <= 1:
-        return df
-    df = df.sort_values("ds").copy()
-    df[col] = df[col].rolling(window=smooth, min_periods=1).mean()
-    return df
-
-fc_view = apply_smooth(fc_view, "yhat")
-fc_view = apply_smooth(fc_view, "yhat_lower")
-fc_view = apply_smooth(fc_view, "yhat_upper")
-ac_view = apply_smooth(ac_view, "y")
+    actual_df = actual_df.loc[(actual_df["ds"] >= start) & (actual_df["ds"] <= end)]
 
 # ----------------------------
-# Metrics
+# Compute Metrics
 # ----------------------------
-eval_df, metrics = (None, None)
-if (ac_view is not None) and (fc_view is not None):
-    eval_df, metrics = compute_metrics(ac_view, fc_view)
+if actual_df is not None:
+    mae, rmse, mape = compute_metrics(actual_df, forecast_df)
+else:
+    mae, rmse, mape = (None, None, None)
 
-kpi_cols = st.columns(3)
-with kpi_cols[0]:
-    st.metric("MAE", style_kpi(metrics["MAE"]) if metrics else "—")
-with kpi_cols[1]:
-    st.metric("RMSE", style_kpi(metrics["RMSE"]) if metrics else "—")
-with kpi_cols[2]:
-    st.metric("MAPE (%)", style_kpi(metrics["MAPE(%)"], "{:,.2f}%") if metrics else "—")
+kpi1, kpi2, kpi3 = st.columns(3)
+kpi1.metric("📉 MAE", f"{mae or '-'}")
+kpi2.metric("📈 RMSE", f"{rmse or '-'}")
+kpi3.metric("🎯 MAPE (%)", f"{mape or '-'}")
 
 # ----------------------------
-# Plot
+# Visualization
 # ----------------------------
-with tab_plot:
-    fig = go.Figure()
+fig = go.Figure()
 
-    if (fc_view is not None) and ("yhat" in fc_view.columns):
-        fig.add_trace(go.Scatter(
-            x=fc_view["ds"], y=fc_view["yhat"],
-            mode="lines+markers" if show_points else "lines",
-            name="Forecast (yhat)",
-            line=dict(width=2)
-        ))
-        if show_ci and ("yhat_lower" in fc_view.columns) and ("yhat_upper" in fc_view.columns):
-            fig.add_traces([
-                go.Scatter(
-                    x=pd.concat([fc_view["ds"], fc_view["ds"][::-1]]),
-                    y=pd.concat([fc_view["yhat_upper"], fc_view["yhat_lower"][::-1]]),
-                    fill="toself",
-                    fillcolor="rgba(14,165,233,0.15)",  # based on PRIMARY_COLOR
-                    line=dict(width=0),
-                    hoverinfo="skip",
-                    name="Confidence Interval"
-                )
-            ])
+fig.add_trace(go.Scatter(
+    x=forecast_df["ds"], y=forecast_df["yhat"],
+    mode="lines", name="Predicted Price",
+    line=dict(color=CPF_YELLOW, width=3)
+))
 
-    if (ac_view is not None) and ("y" in ac_view.columns):
-        fig.add_trace(go.Scatter(
-            x=ac_view["ds"], y=ac_view["y"],
-            mode="lines+markers" if show_points else "lines",
-            name="Actual (y)",
-            line=dict(width=2, dash="dot")
-        ))
+if actual_df is not None and "y" in actual_df.columns:
+    fig.add_trace(go.Scatter(
+        x=actual_df["ds"], y=actual_df["y"],
+        mode="lines+markers", name="Actual Price",
+        line=dict(color=CPF_GREEN, width=2)
+    ))
 
-    fig.update_layout(
-        margin=dict(l=20, r=20, t=40, b=20),
-        title="Actual vs Forecast",
-        xaxis_title="Date",
-        yaxis_title="Price",
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0)
-    )
+fig.update_layout(
+    template="plotly_dark",
+    plot_bgcolor=DARK_BG,
+    paper_bgcolor=DARK_BG,
+    title="Price Forecast Visualization",
+    xaxis_title="Date",
+    yaxis_title="Price (THB)",
+    font=dict(color=CPF_GRAY),
+    hovermode="x unified",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left")
+)
 
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 # ----------------------------
-# Tables
+# Data Table
 # ----------------------------
-with tab_table:
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Forecast (filtered)")
-        if fc_view is not None and not fc_view.empty:
-            st.dataframe(fc_view.sort_values("ds"), use_container_width=True)
-        else:
-            st.caption("—")
-    with right:
-        st.subheader("Actual/History (filtered)")
-        if ac_view is not None and not ac_view.empty:
-            st.dataframe(ac_view.sort_values("ds"), use_container_width=True)
-        else:
-            st.caption("—")
+with st.expander("🔍 Show Data Preview"):
+    st.dataframe(forecast_df.head(20))
 
-# ----------------------------
-# Footer
-# ----------------------------
-st.caption("Tips: ถ้าไฟล์จาก Colab มีชื่อคอลัมน์แปลก (เช่น Layingheny/Feedy) ไม่กระทบ เพราะแอปนี้ใช้เฉพาะ ds, y, yhat[, yhat_lower, yhat_upper]")
+st.markdown(f"<p style='text-align:center; color:{CPF_GRAY};'>© 2025 CPF Digital Transformation | War Room AI Super Egg</p>", unsafe_allow_html=True)
