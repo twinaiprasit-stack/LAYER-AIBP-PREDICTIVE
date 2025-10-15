@@ -169,6 +169,12 @@ def fig_to_png_bytes(fig, width=1200, height=700, scale=1.0):
     return pio.to_image(fig, format="png", width=width, height=height, scale=scale)
 
 def build_pdf(dataframe, figs_dict, logo_img):
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    # ลงทะเบียนฟอนต์ไทย
+    pdfmetrics.registerFont(TTFont("THSarabunNew", "THSarabunNew.ttf"))
+
     # Prepare PDF in memory
     buf = BytesIO()
     c = Canvas(buf, pagesize=landscape(A4))
