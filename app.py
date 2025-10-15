@@ -190,10 +190,10 @@ def build_pdf(dataframe, figs_dict, logo_img):
             c.drawImage(ImageReader(logo_img), 30, height-50, width=80, height=40, preserveAspectRatio=True, mask='auto')
         # Title
         c.setFillColor(colors.HexColor("#2f3b3f"))
-        c.setFont("Helvetica-Bold", 16)
+        c.setFont("Sarabun", 16)
         c.drawString(120, height-40, "Layer-X Super Egg War Room Summary")
         # Page number
-        c.setFont("Helvetica", 10)
+        c.setFont("Sarabun", 10)
         c.setFillColor(colors.HexColor("#6b6f72"))
         c.drawRightString(width-30, 20, f"Page {page_num} of {total_pages}")
         # Footer line
@@ -201,7 +201,7 @@ def build_pdf(dataframe, figs_dict, logo_img):
         c.setLineWidth(1)
         c.line(20, 50, width-20, 50)
         # Footer text
-        c.setFont("Helvetica", 9)
+        c.setFont("Sarabun", 9)
         c.setFillColor(colors.HexColor("#6b6f72"))
         c.drawString(30, 35, "© CPF Digital PMO | Layer-X Initiative")
 
@@ -217,8 +217,8 @@ def build_pdf(dataframe, figs_dict, logo_img):
         c.setFillColor(colors.HexColor(color_hex))
         c.roundRect(x, y-h, w, h, 10, fill=1, stroke=0)
         c.setFillColor(colors.HexColor("#2f3b3f"))
-        c.setFont("Helvetica", 10); c.drawString(x+12, y-24, title)
-        c.setFont("Helvetica-Bold", 18); c.drawString(x+12, y-48, value)
+        c.setFont("Sarabun", 10); c.drawString(x+12, y-24, title)
+        c.setFont("Sarabun-Bold", 18); c.drawString(x+12, y-48, value)
 
     card_w, card_h = 210, 70
     gap = 15
@@ -241,9 +241,9 @@ def build_pdf(dataframe, figs_dict, logo_img):
         kpi_card(x0+4*(card_w+gap), y, card_w, card_h, "Correlation (r)", corr_txt, "#fff6d6")
 
     # Insights
-    c.setFont("Helvetica-Bold", 12); c.setFillColor(colors.HexColor("#2f3b3f"))
+    c.setFont("Sarabun-Bold", 12); c.setFillColor(colors.HexColor("#2f3b3f"))
     c.drawString(30, y-90, "Dynamic Insights")
-    c.setFont("Helvetica", 10); c.setFillColor(colors.HexColor("#2f3b3f"))
+    c.setFont("Sarabun", 10); c.setFillColor(colors.HexColor("#2f3b3f"))
     insights = []
     if "PriceMarket" in dataframe.columns and np.nanmean(dataframe["PriceMarket"]) and (np.nanstd(dataframe["PriceMarket"])/np.nanmean(dataframe["PriceMarket"]))*100 > 10:
         insights.append("ราคามีความผันผวนสูง (>10% CV) — ควรเฝ้าระวัง")
