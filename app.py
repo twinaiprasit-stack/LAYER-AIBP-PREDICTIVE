@@ -35,10 +35,32 @@ st.markdown("<h2 style='text-align:center; color:#76d9c1;'>🥚 Layer-X Super Eg
 
 # ================== RANGE FILTER ==================
 df = train_df.copy()
+
+# ensure datetime dtype for ds column
+if "ds" in df.columns:
+    df["ds"] = pd.to_datetime(df["ds"], errors="coerce")
+
 if "ds" in df.columns and df["ds"].notna().any():
-    min_date, max_date = df["ds"].min(), df["ds"].max()
-    date_range = st.sidebar.slider("เลือกช่วงวันที่", min_value=min_date, max_value=max_date, value=(min_date, max_date))
-    df = df[(df["ds"] >= date_range[0]) & (df["ds"] <= date_range[1])].copy()
+    # get min/max date and convert to pure date type
+    min_date = pd.to_datetime(df["ds"].min()).to_pydatetime().date()
+    max_date = pd.to_datetime(df["ds"].max()).to_pydatetime().date()
+
+    # create a safe slider
+    date_range = st.sidebar.slider(
+        "เลือกช่วงวันที่",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date)
+    )
+
+    # convert slider output (date) back to Timestamp for filtering
+    df = df[
+        (df["ds"] >= pd.Timestamp(date_range[0])) &
+        (df["ds"] <= pd.Timestamp(date_range[1]))
+    ].copy()
+else:
+    st.sidebar.info("ไม่พบคอลัมน์วันที่ (ds) หรือข้อมูลไม่ถูกต้อง")
+
 
 # ================== KPI COMPUTE ==================
 has_price = "PriceMarket" in df.columns
