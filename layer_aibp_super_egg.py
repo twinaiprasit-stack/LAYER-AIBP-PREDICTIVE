@@ -23,8 +23,8 @@ The subtask requires loading two CSV files into pandas DataFrames. This can be d
 
 import pandas as pd
 
-train_df = pd.read_csv('/content/Predict Egg Price 2022-25 with Date - Train_Pmhoo.csv')
-test_df = pd.read_csv('/content/Predict Egg Price 2022-25 with Date - Test_Pmhoo.csv')
+train_df = pd.read_csv("Predict Egg Price 2022-25 with Date - Train_Pmhoo.csv")
+test_df  = pd.read_csv("Predict Egg Price 2022-25 with Date - Test_Pmhoo.csv")
 
 """## Prepare the data for prophet
 
