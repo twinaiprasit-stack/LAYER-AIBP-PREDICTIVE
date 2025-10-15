@@ -174,7 +174,7 @@ def build_pdf(dataframe, figs_dict, logo_img):
 
     # ลงทะเบียนฟอนต์ไทย
     pdfmetrics.registerFont(TTFont("Sarabun", "Sarabun-Regular.ttf"))
-pdfmetrics.registerFont(TTFont("Sarabun-Bold", "Sarabun-Bold.ttf"))
+    pdfmetrics.registerFont(TTFont("Sarabun-Bold", "Sarabun-Bold.ttf"))
 
     # Prepare PDF in memory
     buf = BytesIO()
