@@ -173,7 +173,7 @@ def build_pdf(dataframe, figs_dict, logo_img):
     from reportlab.pdfbase.ttfonts import TTFont
 
     # ลงทะเบียนฟอนต์ไทย
-    pdfmetrics.registerFont(TTFont("THSarabunNew", "THSarabunNew.ttf"))
+    pdfmetrics.registerFont(TTFont("Sarabun-Regular.ttf", "Sarabun-Bold.ttf"))
 
     # Prepare PDF in memory
     buf = BytesIO()
