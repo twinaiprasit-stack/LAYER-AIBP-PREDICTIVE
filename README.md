@@ -9,6 +9,6 @@
 ### 🚀 Deploy บน Streamlit Cloud
 1. อัปโหลดไฟล์ทั้งหมดขึ้น GitHub
 2. สร้างแอปใหม่ใน [streamlit.io/cloud](https://streamlit.io/cloud)
-3. ตั้งค่า main file = `app_warroom_plus.py`
+3. ตั้งค่า main file = `app.py`
 
 > 💡 หากมีไฟล์ `forecast.csv` และ `actual.csv` ใน repo แอปจะโหลดอัตโนมัติ
