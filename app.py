@@ -13,7 +13,7 @@ try:
     st.sidebar.image(logo, width=150)
 except Exception:
     st.sidebar.write("CPF")
-st.sidebar.markdown("### Layer-X Super Egg Dashboard (v3.1)")
+st.sidebar.markdown("### Layer-X Super Egg Dashboard")
 st.sidebar.write("Executive War Room View + Analytics")
 
 st.markdown("""
@@ -28,7 +28,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align:center; color:#76d9c1;'>🥚 Layer-X Super Egg – War Room v3.1</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center; color:#76d9c1;'>🥚 Layer-X Super Egg – War Room </h2>", unsafe_allow_html=True)
 
 # RANGE FILTER
 df = train_df.copy()
